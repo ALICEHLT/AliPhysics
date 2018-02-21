@@ -1,5 +1,5 @@
 /// \file AddTaskEMCALTimeCalibration.C
-/// \ingroup EMCALPerformanceMacros
+/// \ingroup EMCALPerfAddTaskMacros
 /// \brief Configuration of task AliAnalysisTaskEMCALTimeCalib.
 ///
 /// Configuration of task AliAnalysisTaskEMCALTimeCalib
@@ -115,8 +115,10 @@ AliAnalysisTaskEMCALTimeCalib  * AddTaskEMCALTimeCalibration(TString  outputFile
 
   //bad channel map
   taskmbemcal->SetBadChannelMapSource(badMapType);
-  if(badMapType==2) taskmbemcal->SetBadChannelFileName(badMapFileName);
-
+  if(badMapType==2) {
+    taskmbemcal->SetBadChannelFileName(badMapFileName);
+    taskmbemcal->LoadBadChannelMapFile();
+  }
 
   //taskmbemcal->PrintInfo();
 

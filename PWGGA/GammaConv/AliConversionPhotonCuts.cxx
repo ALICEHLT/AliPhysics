@@ -36,7 +36,7 @@
 #include "TH2.h"
 #include "TF1.h"
 #include "TProfile.h"
-#include "AliStack.h"
+#include "AliMCEvent.h"
 #include "AliAODConversionMother.h"
 #include "TObjString.h"
 #include "AliAODEvent.h"
@@ -59,8 +59,9 @@ class iostream;
 
 using namespace std;
 
+/// \cond CLASSIMP
 ClassImp(AliConversionPhotonCuts)
-
+/// \endcond
 
 const char* AliConversionPhotonCuts::fgkCutNames[AliConversionPhotonCuts::kNCuts] = {
   "V0FinderType",           // 0
@@ -218,8 +219,9 @@ AliConversionPhotonCuts::AliConversionPhotonCuts(const char *name,const char *ti
   fHistoEventPlanePhi(NULL),
   fPreSelCut(kFALSE),
   fProcessAODCheck(kFALSE),
-  fProfileContainingMaterialBudgetWeights(NULL),
-  fMaterialBudgetWeightsInitialized(kFALSE)
+  fMaterialBudgetWeightsInitialized(kFALSE),
+  fProfileContainingMaterialBudgetWeights(NULL)
+
 {
   InitPIDResponse();
   for(Int_t jj=0;jj<kNCuts;jj++){fCuts[jj]=0;}
@@ -354,8 +356,9 @@ AliConversionPhotonCuts::AliConversionPhotonCuts(const AliConversionPhotonCuts &
   fHistoEventPlanePhi(NULL),
   fPreSelCut(ref.fPreSelCut),
   fProcessAODCheck(ref.fProcessAODCheck),
-  fProfileContainingMaterialBudgetWeights(ref.fProfileContainingMaterialBudgetWeights),
-  fMaterialBudgetWeightsInitialized(ref.fMaterialBudgetWeightsInitialized)
+  fMaterialBudgetWeightsInitialized(ref.fMaterialBudgetWeightsInitialized),
+  fProfileContainingMaterialBudgetWeights(ref.fProfileContainingMaterialBudgetWeights)
+
 {
   // Copy Constructor
   for(Int_t jj=0;jj<kNCuts;jj++){fCuts[jj]=ref.fCuts[jj];}
@@ -608,10 +611,10 @@ Bool_t AliConversionPhotonCuts::InitPIDResponse(){
 }
 
 ///________________________________________________________________________
-Bool_t AliConversionPhotonCuts::PhotonIsSelectedMC(TParticle *particle,AliStack *fMCStack,Bool_t checkForConvertedGamma){
+Bool_t AliConversionPhotonCuts::PhotonIsSelectedMC(TParticle *particle,AliMCEvent *mcEvent,Bool_t checkForConvertedGamma){
   // MonteCarlo Photon Selection
 
-  if(!fMCStack)return kFALSE;
+  if(!mcEvent)return kFALSE;
 
   if (particle->GetPdgCode() == 22){
 
@@ -623,12 +626,12 @@ Bool_t AliConversionPhotonCuts::PhotonIsSelectedMC(TParticle *particle,AliStack 
                 return kFALSE;
     }
 
-    if(particle->GetMother(0) >-1 && fMCStack->Particle(particle->GetMother(0))->GetPdgCode() == 22){
+    if(particle->GetMother(0) >-1 && mcEvent->Particle(particle->GetMother(0))->GetPdgCode() == 22){
       return kFALSE; // no photon as mothers!
     }
     
     // removed, decision on primary and secondary taken in main task
-// 		if(particle->GetMother(0) >= fMCStack->GetNprimary()){
+// 		if(particle->GetMother(0) >= mcEvent->GetNumberOfPrimaries()){
 // 			return kFALSE; // the gamma has a mother, and it is not a primary particle
 // 		}
 
@@ -641,7 +644,7 @@ Bool_t AliConversionPhotonCuts::PhotonIsSelectedMC(TParticle *particle,AliStack 
     if(particle->GetNDaughters() >= 2){
       for(Int_t daughterIndex=particle->GetFirstDaughter();daughterIndex<=particle->GetLastDaughter();daughterIndex++){
         if(daughterIndex<0) continue;
-        TParticle *tmpDaughter = fMCStack->Particle(daughterIndex);
+        TParticle *tmpDaughter = mcEvent->Particle(daughterIndex);
         if(tmpDaughter->GetUniqueID() == 5){
         if(tmpDaughter->GetPdgCode() == 11){
           eNeg = tmpDaughter;
@@ -2437,6 +2440,10 @@ Bool_t AliConversionPhotonCuts::SetTPCdEdxCutElectronLine(Int_t ededxSigmaCut){ 
     fPIDnSigmaBelowElectronLine=-2.5;
     fPIDnSigmaAboveElectronLine=3;
     break;
+  case 9: // -2.5,5.
+    fPIDnSigmaBelowElectronLine=-2.5;
+    fPIDnSigmaAboveElectronLine=5;
+    break;
   default:
     AliError("TPCdEdxCutElectronLine not defined");
     return kFALSE;
@@ -2916,6 +2923,9 @@ Bool_t AliConversionPhotonCuts::SetChi2GammaCut(Int_t chi2GammaCut){   // Set Cu
     break;
   case 9:
     fChi2CutConversion = 15.;
+    break;
+  case 10:
+    fChi2CutConversion = 25.;
     break;
   default:
     AliError(Form("Warning: Chi2GammaCut not defined %d",chi2GammaCut));

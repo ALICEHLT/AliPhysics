@@ -21,6 +21,7 @@
 
 #include "AliAnalysisTaskConversionQA.h"
 #include "TChain.h"
+#include "TRandom.h"
 #include "AliAnalysisManager.h"
 #include "TParticle.h"
 #include "TVectorF.h"
@@ -47,10 +48,9 @@ AliAnalysisTaskConversionQA::AliAnalysisTaskConversionQA() : AliAnalysisTaskSE()
   fInputEvent(NULL),
   fNumberOfESDTracks(0),
   fMCEvent(NULL),
-  fMCStack(NULL),
   fTreeQA(NULL),
   fIsHeavyIon(kFALSE),
-  ffillTree(kFALSE),
+  ffillTree(-100),
   ffillHistograms(kFALSE),
   fOutputList(NULL),
   fTreeList(NULL),
@@ -139,10 +139,9 @@ AliAnalysisTaskConversionQA::AliAnalysisTaskConversionQA(const char *name) : Ali
   fInputEvent(NULL),
   fNumberOfESDTracks(0),
   fMCEvent(NULL),
-  fMCStack(NULL),
   fTreeQA(NULL),
   fIsHeavyIon(kFALSE),
-  ffillTree(kFALSE),
+  ffillTree(-100),
   ffillHistograms(kFALSE),
   fOutputList(NULL),
   fTreeList(NULL),
@@ -419,10 +418,11 @@ void AliAnalysisTaskConversionQA::UserCreateOutputObjects()
     }
   }
   
-  if(ffillTree){
+  if(ffillTree>=1.0){
     fTreeList = new TList();
     fTreeList->SetOwner(kTRUE);
-    fTreeList->SetName("TreeList");
+    if(ffillTree>1.0) fTreeList->SetName(Form("TreeList_%f",ffillTree));
+    else fTreeList->SetName("TreeList");
     fOutputList->Add(fTreeList);
 
     fTreeQA = new TTree("PhotonQA","PhotonQA");   
@@ -482,7 +482,6 @@ void AliAnalysisTaskConversionQA::UserExec(Option_t *){
   }
   fInputEvent = InputEvent();
   if(fIsMC) fMCEvent = MCEvent();
-  if(fMCEvent && fInputEvent->IsA()==AliESDEvent::Class() && fMCEvent){ fMCStack = fMCEvent->Stack(); }
 
   Int_t eventNotAccepted =
     fEventCuts->IsEventAcceptedByCut(fV0Reader->GetEventCuts(),fInputEvent,fMCEvent,fIsHeavyIon,kFALSE);
@@ -517,22 +516,33 @@ void AliAnalysisTaskConversionQA::UserExec(Option_t *){
     RelabelAODPhotonCandidates(kTRUE);  // In case of AODMC relabeling MC
     fV0Reader->RelabelAODs(kTRUE);
   }
-    
-    
+
+  // reduce event statistics in the tree by a factor ffilltree
+  Bool_t ffillTreeNew = kFALSE;
+  if(ffillTree>=1.0) {
+    ffillTreeNew = kTRUE;
+    if (ffillTree>1.0) {
+      gRandom->SetSeed(0);
+      if(gRandom->Uniform(ffillTree)>1.0) {
+	ffillTreeNew = kFALSE;
+      }
+    }
+  }
+
   for(Int_t firstGammaIndex=0;firstGammaIndex<fConversionGammas->GetEntriesFast();firstGammaIndex++){
     AliAODConversionPhoton *gamma=dynamic_cast<AliAODConversionPhoton*>(fConversionGammas->At(firstGammaIndex));
     if (gamma==NULL) continue;
     if(fMCEvent && fEventCuts->GetSignalRejection() != 0){
-      if(!fEventCuts->IsParticleFromBGEvent(gamma->GetMCLabelPositive(), fMCStack, fInputEvent))
+      if(!fEventCuts->IsParticleFromBGEvent(gamma->GetMCLabelPositive(), fMCEvent, fInputEvent))
         continue;
-      if(!fEventCuts->IsParticleFromBGEvent(gamma->GetMCLabelNegative(), fMCStack, fInputEvent))
+      if(!fEventCuts->IsParticleFromBGEvent(gamma->GetMCLabelNegative(), fMCEvent, fInputEvent))
         continue;
     }
     if(!fConversionCuts->PhotonIsSelected(gamma,fInputEvent)){
       continue;
     }
 
-    if(ffillTree) ProcessQATree(gamma);
+    if(ffillTreeNew) ProcessQATree(gamma);
     if(ffillHistograms) ProcessQA(gamma);
   }
   
@@ -789,9 +799,8 @@ void AliAnalysisTaskConversionQA::CountTracks(){
 UInt_t AliAnalysisTaskConversionQA::IsTruePhotonESD(AliAODConversionPhoton *TruePhotonCandidate)
 {
   UInt_t kind = 9;
-  TParticle *posDaughter = TruePhotonCandidate->GetPositiveMCDaughter(fMCStack);
-  TParticle *negDaughter = TruePhotonCandidate->GetNegativeMCDaughter(fMCStack);
-  Int_t motherLabelPhoton; 
+  TParticle *posDaughter = TruePhotonCandidate->GetPositiveMCDaughter(fMCEvent);
+  TParticle *negDaughter = TruePhotonCandidate->GetNegativeMCDaughter(fMCEvent);
   Int_t pdgCodePos = 0; 
   Int_t pdgCodeNeg = 0; 
   Int_t pdgCode = 0; 
@@ -823,12 +832,10 @@ UInt_t AliAnalysisTaskConversionQA::IsTruePhotonESD(AliAODConversionPhoton *True
     if((pdgCodePos==211 && pdgCodeNeg==11) ||(pdgCodePos==11 && pdgCodeNeg==211)) kind = 13; //Pion, Electron Combinatorics
     if(pdgCodePos==321 && pdgCodeNeg==321) kind = 14; //Kaon,Kaon combinatorics
   }else{		
-    TParticle *Photon = TruePhotonCandidate->GetMCParticle(fMCStack);
     pdgCodePos=posDaughter->GetPdgCode();
     pdgCodeNeg=negDaughter->GetPdgCode();
-    motherLabelPhoton= Photon->GetMother(0);
-    Bool_t gammaIsPrimary = fEventCuts->IsConversionPrimaryESD( fMCStack, posDaughter->GetMother(0), mcProdVtxX, mcProdVtxY, mcProdVtxZ);
-    if ( TruePhotonCandidate->GetMCParticle(fMCStack)->GetPdgCode()) pdgCode = TruePhotonCandidate->GetMCParticle(fMCStack)->GetPdgCode(); 
+    Bool_t gammaIsPrimary = fEventCuts->IsConversionPrimaryESD( fMCEvent, posDaughter->GetMother(0), mcProdVtxX, mcProdVtxY, mcProdVtxZ);
+    if ( TruePhotonCandidate->GetMCParticle(fMCEvent)->GetPdgCode()) pdgCode = TruePhotonCandidate->GetMCParticle(fMCEvent)->GetPdgCode();
 
     if(TMath::Abs(pdgCodePos)!=11 || TMath::Abs(pdgCodeNeg)!=11) return 2; // true from hadronic decays
     else if ( !(pdgCodeNeg==pdgCodePos)){

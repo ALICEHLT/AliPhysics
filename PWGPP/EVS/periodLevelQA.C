@@ -7,6 +7,7 @@
 #include "AliDAQ.h"
 #endif
 #include "map"
+
 using namespace std;
 // TODO read number of bits from AliVEvent?
 #define NBITS 29
@@ -270,16 +271,8 @@ void periodLevelQA(TString inputFileName ="trending.root"){
 
   for (Int_t r=0;r<nRuns;r++){
     t->GetEntry(r);
-//    if (run==253660) continue;
-//    if (run>=255042 && run<=255076) continue;
-//    if (TMath::Abs(aV0MOnVsOfVal)<1e-5) continue;
-//    if (TMath::Abs(bV0MOnVsOfVal)<1e-5) continue;
-//    if (TMath::Abs(aSPDOnVsOfVal)<1e-5) continue;
-//    if (TMath::Abs(bSPDOnVsOfVal)<1e-5) continue;    
-
-//    if (!partition->String().Contains("PHYSICS_1")) continue;
-//    if (!lhcState->String().Contains("STABLE")) continue;
-//    if (!lhcPeriod->String().Contains("LHC15o")) continue;
+    if (!partition->String().Contains("PHYSICS_1")) continue;
+    if (!lhcState->String().Contains("STABLE")) continue;
     Double_t thr = 0;
     if (1) {
       man->SetRun(run);
@@ -905,9 +898,9 @@ void periodLevelQA(TString inputFileName ="trending.root"){
     
     hAcceptedFraction->SetMinimum(elmin-0.1*(elmax-elmin));
     hAcceptedFraction->SetMaximum(elmax+0.1*(elmax-elmin));
-    hAccStep1Fraction->SetMinimum(elmin-0.1*(elmax-elmin));
-    hAccStep1Fraction->SetMaximum(1.0);
     hAccStep1Fraction->SetTitle(hAcceptedFraction->GetTitle());
+    hAccStep1Fraction->SetMaximum(elmax+0.1*(elmax-elmin));
+    hAccStep1Fraction->SetMinimum(elmin-0.1*(elmax-elmin));
     // hAcceptedFraction->Draw();
     hAccStep1Fraction->Draw();
     hAccStep2Fraction->Draw("same");

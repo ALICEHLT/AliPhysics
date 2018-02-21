@@ -43,6 +43,18 @@ class AliConversionMesonCuts;
 class AliConversionPhotonCuts;
 class AliClusterContainer;
 class AliV0ReaderV1;
+class AliGammaConversionAODBGHandler;
+
+/**
+ * @class AliAnalysisTaskK0toPi0Pi0
+ * @brief Class handling analysis of K0s decay into two pi0s.
+ * @author Hannah Bossi
+ * @ingroup GammaConv
+ * @since June 28th 2017
+ *
+ * This task builds K0s from pi0s and distinguishes between the different methods of EMCAL,PCM and EMCAL-PCM.
+ *
+*/
 
 class AliAnalysisTaskK0toPi0Pi0 : public AliAnalysisTaskSE {
 public:
@@ -50,6 +62,11 @@ public:
     kPCMPhoton = 0,
     kEMCALPhoton = 1,
     kUndefined = -1
+  };
+
+  enum MesonType_t {
+    kPi0,
+    kK0
   };
 
   AliAnalysisTaskK0toPi0Pi0();
@@ -61,15 +78,15 @@ public:
   void SetEventCuts(AliConvEventCuts *cuts) { fEventCuts = cuts; }
   void SetConversionPhotonCuts(AliConversionPhotonCuts *cuts) { fConvPhotonCuts = cuts; }
   void SetCaloPhotonCuts(AliCaloPhotonCuts *cuts) { fCaloPhotonCuts = cuts; }
-  void SetPi0Cuts(AliConversionMesonCuts *cuts) { fPi0Cuts = cuts; }
+  void SetPi0CutsConvConv(AliConversionMesonCuts *cuts) { fPi0CutsConvConv = cuts; }
   void SetPi0CutsCaloCalo(AliConversionMesonCuts *cuts) { fPi0CutsCaloCalo = cuts; }
+  void SetPi0CutsConvCalo(AliConversionMesonCuts *cuts) { fPi0CutsConvCalo = cuts; }
   void SetK0Cuts(AliConversionMesonCuts *cuts){ fK0Cuts = cuts;}
 
 protected:
   virtual void UserCreateOutputObjects();
   virtual void UserExec(Option_t *);
   virtual bool UserNotify() { fNewFile = kTRUE; return kTRUE; } // File changed logics in FileChanged function, called when the first event from the file is fully constructed
-
   virtual void ExecOnce();
   virtual void RunChanged()   {}
   virtual void FileChanged()  {}
@@ -77,14 +94,15 @@ protected:
   // Selectors
   std::vector<AliAODConversionPhoton> MakeCaloPhotonCandidates(const AliClusterContainer &inputcont, AliCaloPhotonCuts &cuts);
   std::vector<AliAODConversionPhoton> MakeConversionPhotonCandidates(const AliV0ReaderV1 &reader, AliConversionPhotonCuts &cuts);
-
+  std::vector<AliAODConversionMother> SelectMeson(std::vector<AliAODConversionMother> &candidates, AliConversionMesonCuts &cuts, MesonType_t meson, const char *reccase);
   std::vector<AliAODConversionMother> MakePi0Candidates(const std::vector<AliAODConversionPhoton> *primaryLeg, const std::vector<AliAODConversionPhoton> *secondaryLeg, AliConversionMesonCuts &cuts);
   std::vector<AliAODConversionMother> MakeK0ShortCandidates(const std::vector<AliAODConversionMother> *primaryLeg, const std::vector<AliAODConversionMother> *secondaryLeg, AliConversionMesonCuts &cuts);
+  std::vector<AliAODConversionMother> MakeK0ShortCandidatesMixed(const std::vector<AliAODConversionMother> *sameEvent, const std::vector<AliAODConversionMother *> *mixedEvent, AliConversionMesonCuts &cuts);
 
   void MakePhotonQACalo(const std::vector<AliAODConversionPhoton> &photons, AliConvEventCuts &cuts);
   void MakePhotonQAConv(const std::vector<AliAODConversionPhoton> &photons, AliConvEventCuts &cuts);
-  void MakePi0QA(const std::vector<AliAODConversionMother> &pi0s, const char *reccase);
-  void MakeK0ShortQA(const std::vector<AliAODConversionMother> &k0s, const char *reccase);
+  void MakePi0QA(const std::vector<AliAODConversionMother> &pi0s, const char *reccase,TString selectionStatus);
+  void MakeK0ShortQA(const std::vector<AliAODConversionMother> &k0s, const char *reccase,TString selectionStatus);
 
 private:
   Bool_t                                       fLocalInitialized;     ///< Check whether the task was initialized (triggers ExecOnce)
@@ -100,12 +118,20 @@ private:
   AliConvEventCuts                            *fEventCuts;            ///< Event cuts
   AliConversionPhotonCuts                     *fConvPhotonCuts;       ///< Cuts on conversion photons
   AliCaloPhotonCuts                           *fCaloPhotonCuts;       ///< Calo photon cuts
-  AliConversionMesonCuts                      *fPi0Cuts;              ///< Cuts on the pi0
+  AliConversionMesonCuts                      *fPi0CutsConvConv;      ///< Cuts on the pi0 for the conv conv case
   AliConversionMesonCuts                      *fPi0CutsCaloCalo;      ///< Cuts on the pi0 for the calo calo case
+  AliConversionMesonCuts                      *fPi0CutsConvCalo;      ///< Cuts on the pi0 for the conv calo case
   AliConversionMesonCuts                      *fK0Cuts;               ///< Cuts on the K0
 
+  AliGammaConversionAODBGHandler              *fSamePCMHandler;       //!<!   Background Handler for same PCM
+  AliGammaConversionAODBGHandler              *fSameEMCALHandler;     //!<!   Background Handler for same EMC
+  AliGammaConversionAODBGHandler              *fMixedHandler;         //!<!   Background Handler for mixed case
   THistManager                                *fHistos;               ///< Container for Histograms
   TList                                       *fOutput;               ///< Global output container
+
+
+  AliAnalysisTaskK0toPi0Pi0(const AliAnalysisTaskK0toPi0Pi0 &);
+  AliAnalysisTaskK0toPi0Pi0 &operator=(const AliAnalysisTaskK0toPi0Pi0 &);
 
   /// \cond CLASSIMP
   ClassDef(AliAnalysisTaskK0toPi0Pi0, 1);

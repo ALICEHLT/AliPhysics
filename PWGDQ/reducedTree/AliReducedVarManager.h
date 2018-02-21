@@ -14,13 +14,15 @@
 #include <TH2F.h>
 #include <TProfile2D.h>
 
+#include <AliReducedPairInfo.h>
+
 class AliReducedBaseEvent;
 class AliReducedEventInfo;
 class AliReducedEventPlaneInfo;
 class AliReducedBaseTrack;
 class AliReducedTrackInfo;
-class AliReducedPairInfo;
 class AliReducedCaloClusterInfo;
+class AliKFParticle;
 
 //_____________________________________________________________________
 class AliReducedVarManager : public TObject {
@@ -160,8 +162,31 @@ class AliReducedVarManager : public TObject {
     kNTrackingFlags
   };
 
+  enum Corrections {
+    kVertexCorrectionGlobal=0,
+    kVertexCorrectionRunwise,
+    kVertexCorrectionGlobalGainLoss,
+    kVertexCorrectionRunwiseGainLoss,
+    kVertexCorrection2D,
+    kNCorrections
+  };
+
+  enum ReferenceMultiplicities {
+   kMaximumMultiplicity=0,
+   kMinimumMultiplicity,
+   kMeanMultiplicity,
+   kNReferenceMultiplicities
+  };
+
+  enum SmearingMethods {
+   kNoSmearing=0,
+   kPoissonSmearing,
+   kNSmearingMethods
+  };
+
   
   static const Float_t fgkParticleMass[kNSpecies];
+  static const Float_t fgkPairMass[AliReducedPairInfo::kNMaxCandidateTypes];
   
   enum Variables {
     kNothing = -1,
@@ -180,8 +205,11 @@ class AliReducedVarManager : public TObject {
     kEventTag = kNRunWiseVariables,      // event tag
     kEventNumberInFile, // event number in file
     kL0TriggerInput,    // L0 trigger input
+    kL0TriggerInput2,    // L0 trigger input, used for correlations between inputs
     kL1TriggerInput,    // L1 trigger input
+    kL1TriggerInput2,    // L1 trigger input, used for correlations between inputs
     kL2TriggerInput,    // L2 trigger input
+    kL2TriggerInput2,    // L2 trigger input, used for correlations between inputs
     kRunNo,             // run number         
     kRunID,             // variable for easy filling of histograms vs. run number, without empty bins
     kBeamEnergy,        // LHC beam energy
@@ -200,6 +228,7 @@ class AliReducedVarManager : public TObject {
     kIsPhysicsSelection,    // physics selection 
     kIsSPDPileup,          // whether is SPD pileup
     kIsSPDPileup5,          // whether is SPD pileup (5 vertex contributors)
+    kIsPileupMV,            // pileup from multi vertexer
     kIsSPDPileupMultBins,  // whether is SPD pileup in multiplicity bins
     kNSPDpileups,         // number of pileup events from SPD
     kNTrackPileups,       // number of pileup events from tracks
@@ -274,25 +303,24 @@ class AliReducedVarManager : public TObject {
     kNtracksEventPlane, // number of tracks used for event plane                
     kNCaloClusters,     // number of calorimeter clusters
     kNTPCclusters,    // number of TPC clusters
-    kSPDntracklets,     // SPD number of tracklets in |eta|<1.0                 
-    kSPDntracklets08,     // SPD number of tracklets in |eta|<0.8
-    kSPDntracklets16,     // SPD number of tracklets in |eta|<1.6
-    kSPDntrackletsCorr, // SPD number of tracklets in |eta|<1.0, corrected for detector effects
-    kSPDntrackletsCorrSmear, // SPD number of tracklets in |eta|<1.0, corrected for detector effects, Poisson smeared
-    kSPDntrackletsOuter,     // SPD number of tracklets in outer eta region
-    kSPDntrackletsOuterCorr,     // SPD number of tracklets in outer eta region, corrected for detector effects
-    kSPDntrackletsOuterCorrSmear,     // SPD number of tracklets in outer eta region, corrected for detector effects, Poisson smeared
-    kSPDntrackletsEta,  // SPD number of tracklets in -1.6+0.1*i < eta < -1.6+0.1*(i+1)
-    kSPDFiredChips=kSPDntrackletsEta+32,   // SPD fired chips in first and second layer
+    kMultiplicity,
+    kSPDntracklets = kMultiplicity,
+    kSPDntracklets08,
+    kSPDntracklets16,
+    kSPDntrackletsOuterEta,
+    kSPDntrackletsEtaBin,
+    kSPDnTracklets10EtaVtxCorr = kSPDntrackletsEtaBin + 32,
+    kVZEROTotalMult,
+    kVZEROATotalMult,
+    kVZEROCTotalMult,
+    kVZEROACTotalMult,
+    kCorrectedMultiplicity,
+    kNMultiplicityEstimators = kCorrectedMultiplicity - kMultiplicity,
+    kSPDFiredChips = kCorrectedMultiplicity + kNMultiplicityEstimators * ( 1 + kNCorrections * kNReferenceMultiplicities * kNSmearingMethods), // SPD fired chips in first and second layer
     kITSnClusters=kSPDFiredChips+2,        // number of ITS clusters in each layer
     kSPDnSingleClusters=kITSnClusters+6,   // number of clusters in SPD layer 1 not mached to tracklets from layer 2
     kEventMixingId,     // Id of the event mixing category 
     // VZERO event plane related variables
-    kVZEROATotalMult,   // total multiplicity of VZEROA                         
-    kVZEROCTotalMult,   // total multiplicity of VZEROC                         
-    kVZEROTotalMult,    // total multiplicity of VZERO                          
-    kVZEROTotalMultCorr,    // total multiplicity of VZERO, corrected for detector effects
-    kVZEROTotalMultCorrSmear,    // total multiplicity of VZERO, corrected for detector effects, Poisson smeared
     kVZEROAemptyChannels,  // Number of empty VZERO channels in A side          
     kVZEROCemptyChannels,  // Number of empty VZERO channels in C side          
     kVZEROChannelMult,                        // VZERO multiplicity per channel           
@@ -350,7 +378,7 @@ class AliReducedVarManager : public TObject {
     kTZEROstartTime,                           // TZERO event start time
     kTZEROpileup,                              // TZERO pileup flag
     kTZEROsatellite,                           // TZERO satellite flag
-    // Multiplicity estimators
+    // External Multiplicity estimators
     kMultEstimatorOnlineV0M,
     kMultEstimatorOnlineV0A,
     kMultEstimatorOnlineV0C,
@@ -426,6 +454,7 @@ class AliReducedVarManager : public TObject {
     kMassV0,                    // masses for all 4 V0 assumptions (0-K0s, 1-Lambda, 2-ALambda, 3-Gamma)
     kPairChisquare=kMassV0+4,     
     kPairLxy,           
+    kPseudoProperDecayTime,
     kPairOpeningAngle,  
     kPairPointingAngle, 
     kPairThetaCS,                // cos (theta*) in Collins-Soper frame       
@@ -433,6 +462,7 @@ class AliReducedVarManager : public TObject {
     kPairThetaHE,                // cos (theta*) in helicity frame       
     kPairPhiHE,                    // phi* in helicity frame
     kPairQualityFlag,
+    kPairQualityFlag2,
     kDMA,                        // Distance of minimal approach
     kPairPhiV,                   // angle between pair plane and magnetic field
     kPairDca,                    // pair DCA: sqare root of quadratic sum of daughter DCAs
@@ -443,8 +473,12 @@ class AliReducedVarManager : public TObject {
     kPairDcaZSqrt,
     kMassDcaPtCorr,             // invariant mass, corrected for DCA and pT effects
     kOpAngDcaPtCorr,            // opening angle, corrected for DCA and pT effects
+    kPairEff,                     // pair efficiency
+    kOneOverPairEff,             // 1 / pair efficiency (correction factor) 
+    kOneOverPairEffSq,             // 1 / pair efficiency squared (correction factor)
     kPairLegITSchi2,              // the ITS chi2 for the pair legs, used in correlations between pair legs
     kPairLegTPCchi2=kPairLegITSchi2+2,              // the TPC chi2 for the pair legs, used in correlations between pair legs
+
     // Track-only variables -------------------------------------
     kPtTPC=kPairLegTPCchi2+2,     
     kPhiTPC,    
@@ -509,10 +543,15 @@ class AliReducedVarManager : public TObject {
     // Track flags -----------------------------------------------------
     kTrackingFlag,
     kTrackQualityFlag,
+    kTrackQualityFlag2,
+    kTrackMCFlag,
+    kTrackMCFlag2,
     // Correlation variables ----------------------------------------------
-    kDeltaPhi,          
+    kDeltaPhi,             // shifted to [-pi/2, 3/2 * pi]
     kDeltaTheta,        
-    kDeltaEta,          
+    kDeltaEta,
+    kTriggerPt,     // pt of J/psi candidate
+    kAssociatedPt,  // pt of associated track
     kTrackingFlags,
     kTrackingStatus=kTrackingFlags+kNTrackingFlags,
     kNVars=kTrackingStatus+kNTrackingStatus,     
@@ -551,14 +590,15 @@ class AliReducedVarManager : public TObject {
   static void FillEventInfo(Float_t* values);
   static void FillEventInfo(AliReducedBaseEvent* event, Float_t* values, AliReducedEventPlaneInfo* eventPlane=0x0);
   static void FillEventOnlineTriggers(AliReducedEventInfo* event, Float_t* values);
-  static void FillEventOnlineTrigger(UShort_t triggerBit, Float_t* values);
+  static void FillEventOnlineTrigger(UShort_t triggerBit, Float_t* values, UShort_t triggerBit2=999);
   static void FillEventTagInput(AliReducedBaseEvent* event, Int_t input, Float_t* values);
-  static void FillL0TriggerInputs(AliReducedEventInfo* event, Int_t input, Float_t* values);
-  static void FillL1TriggerInputs(AliReducedEventInfo* event, Int_t input, Float_t* values);
-  static void FillL2TriggerInputs(AliReducedEventInfo* event, Int_t input, Float_t* values);
+  static void FillL0TriggerInputs(AliReducedEventInfo* event, Int_t input, Float_t* values, Int_t input2=999);
+  static void FillL1TriggerInputs(AliReducedEventInfo* event, Int_t input, Float_t* values, Int_t input2=999);
+  static void FillL2TriggerInputs(AliReducedEventInfo* event, Int_t input, Float_t* values, Int_t input2=999);
   static void FillTrackingFlag(AliReducedTrackInfo* track, UInt_t flag, Float_t* values);
-  static void FillTrackQualityFlag(AliReducedBaseTrack* track, UShort_t flag, Float_t* values);
-  static void FillPairQualityFlag(AliReducedPairInfo* p, UShort_t flag, Float_t* values);
+  static void FillTrackQualityFlag(AliReducedBaseTrack* track, UShort_t flag, Float_t* values, UShort_t flag2=999);
+  static void FillTrackMCFlag(AliReducedBaseTrack* track, UShort_t flag, Float_t* values, UShort_t flag2=999);
+  static void FillPairQualityFlag(AliReducedPairInfo* p, UShort_t flag, Float_t* values, UShort_t flag2=999);
   static void FillTrackInfo(AliReducedBaseTrack* p, Float_t* values);
   static void FillITSlayerFlag(AliReducedTrackInfo* track, Int_t layer, Float_t* values);
   static void FillTPCclusterBitFlag(AliReducedTrackInfo* track, Int_t bit, Float_t* values);
@@ -566,10 +606,11 @@ class AliReducedVarManager : public TObject {
   static void FillPairInfo(AliReducedBaseTrack* t1, AliReducedBaseTrack* t2, Int_t type, Float_t* values);
   static void FillPairInfo(AliReducedPairInfo* leg1, AliReducedBaseTrack* leg2, Int_t type, Float_t* values);
   static void FillPairInfoME(AliReducedBaseTrack* t1, AliReducedBaseTrack* t2, Int_t type, Float_t* values);
-  static void FillCorrelationInfo(AliReducedPairInfo* p, AliReducedBaseTrack* t, Float_t* values);
+  static void FillCorrelationInfo(AliReducedBaseTrack* p, AliReducedBaseTrack* t, Float_t* values);
+  static void FillCorrelationInfo(AliReducedBaseTrack* t, Float_t* values);
   static void FillCaloClusterInfo(AliReducedCaloClusterInfo* cl, Float_t* values);
   static void FillTrackingStatus(AliReducedTrackInfo* p, Float_t* values);
-  static void FillTrackingFlags(AliReducedTrackInfo* p, Float_t* values);
+ // static void FillTrackingFlags(AliReducedTrackInfo* p, Float_t* values);
   static void FillMCTruthInfo(AliReducedTrackInfo* p, Float_t* values, AliReducedTrackInfo* leg1 = 0x0, AliReducedTrackInfo* leg2 = 0x0);
   
   static void PrintTrackFlags(AliReducedTrackInfo* track);
@@ -585,13 +626,15 @@ class AliReducedVarManager : public TObject {
   static TString GetVarUnit(Int_t var) {return fgVariableUnits[var];} 
 
   static void SetTPCelectronCorrectionMaps(TH2F* centroidMap, TH2F* widthMap, Variables xVarDep, Variables yVarDep);
+  static void SetPairEfficiencyMap(TH2F* effMap, Variables xVarDep, Variables yVarDep);
   static void SetLHCDataInfo(TH1F* totalLumi, TH1F* totalInt0, TH1F* totalInt1, TH1I* fillNumber);
   static void SetGRPDataInfo(TH1I* dipolePolarity, TH1I* l3Polarity, TH1I* timeStart, TH1I* timeStop);
   static void SetRunNumbers( TString runNumbers );
-  static void SetMultiplicityProfile( TH1* profile, Int_t estimator = 0 );
+  static void SetMultiplicityProfile( TH2* profile, Int_t estimator );
   static void SetVZEROCalibrationPath(const Char_t* path);
   static void SetCalibrateVZEROqVector(Bool_t option);
   static void SetRecenterVZEROqVector(Bool_t option);
+  static Int_t GetCorrectedMultiplicity( Int_t estimator = kMultiplicity, Int_t correction = 0, Int_t reference = 0, Int_t smearing = 0 );
   
  private:
   static Int_t     fgCurrentRunNumber;               // current run number
@@ -609,11 +652,16 @@ class AliReducedVarManager : public TObject {
 			    Float_t &thetaCS, Float_t &phiCS,
 			    Float_t leg1Mass=fgkParticleMass[kElectron], Float_t leg2Mass=fgkParticleMass[kElectron]);
   static void GetLegMassAssumption(Int_t id, Float_t& m1, Float_t& m2);
-
+  static AliKFParticle BuildKFcandidate(AliReducedTrackInfo* track1, Float_t mh1, AliReducedTrackInfo* track2, Float_t mh2);
+  static AliKFParticle BuildKFvertex( AliReducedEventInfo * event );
+  
   static TH2F* fgTPCelectronCentroidMap;    // TPC electron centroid 2D map
   static TH2F* fgTPCelectronWidthMap;       // TPC electron width 2D map
   static Variables fgVarDependencyX;        // varX in the 2-D electron correction maps
   static Variables fgVarDependencyY;        // varY in the 2-D electron correction maps
+  static TH2F* fgPairEffMap;       // 2D pair efficiency map
+  static Variables fgEffMapVarDependencyX;        // varX in the pair eff maps
+  static Variables fgEffMapVarDependencyY;        // varY in the pair eff maps
   
   static TH1F* fgRunTotalLuminosity;      // total luminosity, GRP/GRP/LHCData::GetLumiAliceSBDelivered()
   static TH1F* fgRunTotalIntensity0;        // total intensity beam 1, GRP/GRP/LHCData::GetTotalIntensity(0)
@@ -625,8 +673,14 @@ class AliReducedVarManager : public TObject {
   static TH1I* fgRunTimeEnd;                  // run stop time, GRP/GRP/Data::GetTimeEnd()
   static std::vector<Int_t> fgRunNumbers;     // vector with run numbers (for histograms vs. run number)
   static Int_t fgRunID;                       // run ID
-  static TH1* fgAvgMultVsVertex[3];           // average multiplicity vs. z-vertex position
-  static Double_t fgRefMult[3];                  // reference multiplicity for z-vertex correction
+  static TH1* fgAvgMultVsVtxGlobal      [kNMultiplicityEstimators];        // average multiplicity vs. z-vertex position (global)
+  static TH1* fgAvgMultVsVtxRunwise     [kNMultiplicityEstimators];        // average multiplicity vs. z-vertex position (run-by-run)
+  static TH1* fgAvgMultVsRun            [kNMultiplicityEstimators];           // average multiplicity vs. run number
+  static TH2* fgAvgMultVsVtxAndRun      [kNMultiplicityEstimators];  // 2D : average multiplicity vs. run number and z-vertex position
+  static Double_t fgRefMultVsVtxGlobal  [kNMultiplicityEstimators] [kNReferenceMultiplicities];  // reference multiplicity for z-vertex correction (global)
+  static Double_t fgRefMultVsVtxRunwise [kNMultiplicityEstimators] [kNReferenceMultiplicities];  // reference multiplicity for z-vertex correction (run-by-run)
+  static Double_t fgRefMultVsRun        [kNMultiplicityEstimators] [kNReferenceMultiplicities];  // reference multiplicity for run correction
+  static Double_t fgRefMultVsVtxAndRun  [kNMultiplicityEstimators] [kNReferenceMultiplicities];  // reference multiplicity for run, vtx correction
   static TString fgVZEROCalibrationPath;       // path to the VZERO calibration histograms
   static TProfile2D* fgAvgVZEROChannelMult[64];       // average multiplicity in VZERO channels vs (vtxZ,centSPD)
   static TProfile2D* fgVZEROqVecRecentering[4];       // (vtxZ,centSPD) maps of the VZERO A and C recentering Qvector offsets
@@ -636,7 +690,7 @@ class AliReducedVarManager : public TObject {
   AliReducedVarManager(AliReducedVarManager const&);
   AliReducedVarManager& operator=(AliReducedVarManager const&);  
   
-  ClassDef(AliReducedVarManager,2);
+  ClassDef(AliReducedVarManager, 4);
 };
 
 #endif

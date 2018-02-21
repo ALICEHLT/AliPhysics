@@ -1,5 +1,5 @@
 /***************************************************************************
-              Anders Knospe - last modified on 26 March 2016
+              Anders Knospe - last modified on 31 August 2016
 
 *** Configuration script for phi analysis of 2015 pp 13-TeV data ***
 ****************************************************************************/
@@ -21,7 +21,8 @@ Bool_t ConfigPhiPP13TeV_PID
  Bool_t                 useMixLS=0,
  Bool_t                 checkReflex=0,
  AliRsnMiniValue::EType yaxisVar=AliRsnMiniValue::kPt,
- TString                polarizationOpt="" /* J - Jackson,T - Transversity */
+ TString                polarizationOpt="", /* J - Jackson,T - Transversity */
+ UInt_t                 triggerMask=AliVEvent::kINT7
 )
 {
   // manage suffix
@@ -76,6 +77,24 @@ Bool_t ConfigPhiPP13TeV_PID
   /* cos(theta) J (MC)*/ Int_t ctjmID  = task->CreateValue(AliRsnMiniValue::kCosThetaJackson,kTRUE);
   /* cos(theta) T     */ Int_t cttID  = task->CreateValue(AliRsnMiniValue::kCosThetaTransversity,kFALSE);
   /* cos(theta) T (MC)*/ Int_t cttmID  = task->CreateValue(AliRsnMiniValue::kCosThetaTransversity,kTRUE);
+
+  Double_t multbins[200];
+  int j,nmult=0;
+  if(isMC){
+    for(j=0;j<10;j++){multbins[nmult]=0.001*j; nmult++;}
+    for(j=1;j<10;j++){multbins[nmult]=0.01*j; nmult++;}
+    for(j=1;j<10;j++){multbins[nmult]=0.1*j; nmult++;}
+    for(j=1;j<10;j++){multbins[nmult]=j; nmult++;}
+    for(j=2;j<=20;j++){multbins[nmult]=5.*j; nmult++;}
+  }else if(triggerMask==AliVEvent::kHighMultV0){
+    for(j=0;j<10;j++){multbins[nmult]=0.001*j; nmult++;}
+    for(j=1;j<10;j++){multbins[nmult]=0.01*j; nmult++;}
+    for(j=1;j<=10;j++){multbins[nmult]=0.1*j; nmult++;}
+  }else{
+    for(j=0;j<10;j++){multbins[nmult]=0.1*j; nmult++;}
+    for(j=1;j<10;j++){multbins[nmult]=j; nmult++;}
+    for(j=2;j<=20;j++){multbins[nmult]=5.*j; nmult++;}
+  }
   
   // -- Create all needed outputs -----------------------------------------------------------------
   // use an array for more compact writing, which are different on mixing and charges
@@ -88,7 +107,7 @@ Bool_t ConfigPhiPP13TeV_PID
   Int_t   useIM  [11]={ 1      ,  1     , 1      ,  1     ,  1     ,  1        ,  2      , 2           ,0       , 1        , 1        };
   TString name   [11]={"Unlike","Mixing","LikePP","LikeMM","Trues" ,"TruesFine","TruesMM","TruesFineMM","Res"   ,"MixingPP","MixingMM"};
   TString comp   [11]={"PAIR"  , "MIX"  ,"PAIR"  ,"PAIR"  , "TRUE" , "TRUE"    ,"TRUE"   ,"TRUE"       ,"TRUE"  ,"MIX"     ,"MIX"     };
-  TString output [11]={"SPARSE","SPARSE","SPARSE","SPARSE","SPARSE","SPARSE"   ,"SPARSE" ,"SPARSE"     ,"SPARSE","SPARSE"  ,"SPARSE"  };
+  TString output [11]={"HIST","HIST","HIST","HIST","HIST","HIST"   ,"HIST" ,"HIST"     ,"HIST","HIST"  ,"HIST"  };
   Int_t   pdgCode[11]={333     , 333    ,333     ,333     , 333    , 333       ,333      ,333          ,333     , 333      ,333       };
   Char_t  charge1[11]={'+'     , '+'    ,'+'     ,'-'     , '+'    , '+'       ,'+'      , '+'         ,'+'     ,'+'       ,'-'       };
   Char_t  charge2[11]={'-'     , '-'    ,'+'     ,'-'     , '-'    , '-'       ,'-'      , '-'         ,'-'     ,'+'       ,'-'       };
@@ -120,8 +139,8 @@ Bool_t ConfigPhiPP13TeV_PID
     else out->AddAxis(ptID,200,0.,20.);//default use mother pt
 
     // axis Z: centrality-multiplicity
-    if(!isPP || MultBins) out->AddAxis(centID,100,0.,100.);
-    else out->AddAxis(centID,161,-0.5,160.5);
+    if(!isPP || MultBins) out->AddAxis(centID,nmult,multbins);//out->AddAxis(centID,100,0.,100.);
+    else out->AddAxis(centID,nmult,multbins);//out->AddAxis(centID,161,-0.5,160.5);
     // axis W: pseudorapidity
     // out->AddAxis(etaID, 20, -1.0, 1.0);
     // axis J: rapidity
@@ -133,7 +152,7 @@ Bool_t ConfigPhiPP13TeV_PID
 
   if(isMC){   
     //get mothers for phi PDG = 333
-    AliRsnMiniOutput* outm=task->CreateOutput(Form("phi_Mother%s", suffix),"SPARSE","MOTHER");
+    AliRsnMiniOutput* outm=task->CreateOutput(Form("phi_Mother%s", suffix),"HIST","MOTHER");
     outm->SetDaughter(0,AliRsnDaughter::kKaon);
     outm->SetDaughter(1,AliRsnDaughter::kKaon);
     outm->SetMotherPDG(333);
@@ -141,12 +160,13 @@ Bool_t ConfigPhiPP13TeV_PID
     outm->SetPairCuts(cutsPair);
     outm->AddAxis(imID,215,0.985,1.2);
     outm->AddAxis(ptID,200,0.,20.);
-    if(!isPP || MultBins) outm->AddAxis(centID,100,0.,100.);
-    else outm->AddAxis(centID,161,-0.5,160.5);
+    outm->AddAxis(centID,nmult,multbins);
+    //if(!isPP || MultBins) outm->AddAxis(centID,100,0.,100.);
+    //else outm->AddAxis(centID,161,-0.5,160.5);
     if (polarizationOpt.Contains("J")) outm->AddAxis(ctjmID,21,-1.,1.);
     if (polarizationOpt.Contains("T")) outm->AddAxis(cttmID,21,-1.,1.);
 
-    AliRsnMiniOutput* outmf=task->CreateOutput(Form("phi_MotherFine%s", suffix),"SPARSE","MOTHER");
+    AliRsnMiniOutput* outmf=task->CreateOutput(Form("phi_MotherFine%s", suffix),"HIST","MOTHER");
     outmf->SetDaughter(0,AliRsnDaughter::kKaon);
     outmf->SetDaughter(1,AliRsnDaughter::kKaon);
     outmf->SetMotherPDG(333);
@@ -154,8 +174,9 @@ Bool_t ConfigPhiPP13TeV_PID
     outmf->SetPairCuts(cutsPair);
     outmf->AddAxis(imID,215,0.985,1.2);
     outmf->AddAxis(ptID,300,0.,3.);//fine binning for efficiency weighting
-    if(!isPP || MultBins) outmf->AddAxis(centID,100,0.,100.);
-    else outmf->AddAxis(centID,161,-0.5,160.5);
+    outmf->AddAxis(centID,nmult,multbins);
+    //if(!isPP || MultBins) outmf->AddAxis(centID,100,0.,100.);
+    //else outmf->AddAxis(centID,161,-0.5,160.5);
     if (polarizationOpt.Contains("J")) outmf->AddAxis(ctjmID,21,-1.,1.);
     if (polarizationOpt.Contains("T")) outmf->AddAxis(cttmID,21,-1.,1.);
 

@@ -10,6 +10,7 @@ using std::endl;
 
 #include <TClonesArray.h>
 #include <TIterator.h>
+#include <TList.h>
 
 #include "AliReducedVarManager.h"
 #include "AliReducedEventInfo.h"
@@ -26,12 +27,14 @@ ClassImp(AliReducedAnalysisJpsi2ee);
 AliReducedAnalysisJpsi2ee::AliReducedAnalysisJpsi2ee() :
   AliReducedAnalysisTaskSE(),
   fHistosManager(new AliHistogramManager("Histogram Manager", AliReducedVarManager::kNVars)),
-  fMixingHandler(new AliMixingHandler()),
+  fMixingHandler(new AliMixingHandler("J/psi signal extraction","", AliMixingHandler::kMixResonanceLegs)),
   fOptionRunMixing(kTRUE),
   fOptionRunPairing(kTRUE),
   fOptionRunOverMC(kFALSE),
   fOptionRunLikeSignPairing(kTRUE),
   fOptionLoopOverTracks(kTRUE),
+  fOptionRunPrefilter(kTRUE),
+  fOptionStoreJpsiCandidates(kFALSE),
   fEventCuts(),
   fTrackCuts(),
   fPreFilterTrackCuts(),
@@ -41,7 +44,7 @@ AliReducedAnalysisJpsi2ee::AliReducedAnalysisJpsi2ee() :
   fNegTracks(),
   fPrefilterPosTracks(),
   fPrefilterNegTracks(),
-  fEventCounter(0)
+  fJpsiCandidates()
 {
   //
   // default constructor
@@ -53,12 +56,14 @@ AliReducedAnalysisJpsi2ee::AliReducedAnalysisJpsi2ee() :
 AliReducedAnalysisJpsi2ee::AliReducedAnalysisJpsi2ee(const Char_t* name, const Char_t* title) :
   AliReducedAnalysisTaskSE(name,title),
   fHistosManager(new AliHistogramManager("Histogram Manager", AliReducedVarManager::kNVars)),
-  fMixingHandler(new AliMixingHandler()),
+  fMixingHandler(new AliMixingHandler("J/psi signal extraction","", AliMixingHandler::kMixResonanceLegs)),
   fOptionRunMixing(kTRUE),
   fOptionRunPairing(kTRUE),
   fOptionRunOverMC(kFALSE),
   fOptionRunLikeSignPairing(kTRUE),
   fOptionLoopOverTracks(kTRUE),
+  fOptionRunPrefilter(kTRUE),
+  fOptionStoreJpsiCandidates(kFALSE),
   fEventCuts(),
   fTrackCuts(),
   fPreFilterTrackCuts(),
@@ -68,7 +73,7 @@ AliReducedAnalysisJpsi2ee::AliReducedAnalysisJpsi2ee(const Char_t* name, const C
   fNegTracks(),
   fPrefilterPosTracks(),
   fPrefilterNegTracks(),
-  fEventCounter(0)
+  fJpsiCandidates()
 {
   //
   // named constructor
@@ -82,6 +87,7 @@ AliReducedAnalysisJpsi2ee::AliReducedAnalysisJpsi2ee(const Char_t* name, const C
    fNegTracks.SetOwner(kFALSE);
    fPrefilterPosTracks.SetOwner(kFALSE);
    fPrefilterNegTracks.SetOwner(kFALSE);
+   fJpsiCandidates.SetOwner(kTRUE);
 }
 
 
@@ -93,6 +99,7 @@ AliReducedAnalysisJpsi2ee::~AliReducedAnalysisJpsi2ee()
   //
    fEventCuts.Clear("C"); fTrackCuts.Clear("C"); fPreFilterTrackCuts.Clear("C"); fPreFilterPairCuts.Clear("C"); fPairCuts.Clear("C");
    fPosTracks.Clear("C"); fNegTracks.Clear("C"); fPrefilterPosTracks.Clear("C"); fPrefilterNegTracks.Clear("C");
+   fJpsiCandidates.Clear("C");
    if(fHistosManager) delete fHistosManager;
    if(fMixingHandler) delete fMixingHandler;
 }
@@ -147,7 +154,7 @@ Bool_t AliReducedAnalysisJpsi2ee::IsTrackSelected(AliReducedBaseTrack* track, Fl
 //___________________________________________________________________________
 Bool_t AliReducedAnalysisJpsi2ee::IsTrackPrefilterSelected(AliReducedBaseTrack* track, Float_t* values/*=0x0*/) {
    //
-   // apply event cuts
+   // apply track prefilter cuts
    //
    if(fPreFilterTrackCuts.GetEntries()==0) return kTRUE;
    
@@ -163,7 +170,7 @@ Bool_t AliReducedAnalysisJpsi2ee::IsTrackPrefilterSelected(AliReducedBaseTrack* 
 //___________________________________________________________________________
 Bool_t AliReducedAnalysisJpsi2ee::IsPairSelected(Float_t* values) {
   //
-  // apply event cuts
+  // apply pair cuts
   //
   if(fPairCuts.GetEntries()==0) return kTRUE;
   // loop over all the cuts and make a logical and between all cuts in the list
@@ -194,6 +201,14 @@ void AliReducedAnalysisJpsi2ee::Init() {
   // initialize stuff
   //
    AliReducedVarManager::SetDefaultVarNames();
+   // make sure variables needed to create jpsi candidate objects are filled
+   if(fOptionStoreJpsiCandidates) {
+      AliReducedVarManager::SetUseVariable(AliReducedVarManager::kPt);
+      AliReducedVarManager::SetUseVariable(AliReducedVarManager::kPhi);
+      AliReducedVarManager::SetUseVariable(AliReducedVarManager::kEta);
+      AliReducedVarManager::SetUseVariable(AliReducedVarManager::kMass);
+      AliReducedVarManager::SetUseVariable(AliReducedVarManager::kPairType);
+   }
    fHistosManager->SetUseDefaultVariableNames(kTRUE);
    fHistosManager->SetDefaultVarNames(AliReducedVarManager::fgVariableNames,AliReducedVarManager::fgVariableUnits);
    
@@ -257,7 +272,7 @@ void AliReducedAnalysisJpsi2ee::Process() {
   //          and further pairing
   //FillTrackHistograms("Track_BeforePrefilter");
   //RunSameEventPairing("PairPrefilterSE");
-  if(fOptionLoopOverTracks)
+  if(fOptionLoopOverTracks && fOptionRunPrefilter)
     RunPrefilter();
   
   if(fOptionLoopOverTracks) {
@@ -360,7 +375,6 @@ void AliReducedAnalysisJpsi2ee::FillPairHistograms(ULong_t mask, Int_t pairType,
          fHistosManager->FillHistClass(Form("%s%s_%s", pairClass.Data(), typeStr[pairType].Data(), fTrackCuts.At(icut)->GetName()), fValues);
          if(isMCTruth && pairType==1) fHistosManager->FillHistClass(Form("%s%s_%s_MCTruth", pairClass.Data(), typeStr[pairType].Data(), fTrackCuts.At(icut)->GetName()), fValues);
       }
-         
    }  // end loop over cuts
 }
 
@@ -374,12 +388,21 @@ void AliReducedAnalysisJpsi2ee::RunTrackSelection() {
    fPosTracks.Clear("C"); fNegTracks.Clear("C"); fPrefilterPosTracks.Clear("C"); fPrefilterNegTracks.Clear("C");
    fValues[AliReducedVarManager::kEvAverageTPCchi2] = 0.0;
    
-   // loop over the track list and evaluate all the track cuts
+   // loop over the track list(s) and evaluate all the track cuts
+   LoopOverTracks(1);      // first array
+   LoopOverTracks(2);      // second array (if used)
+}
+
+//___________________________________________________________________________
+void AliReducedAnalysisJpsi2ee::LoopOverTracks(Int_t arrayOption /*=1*/) {
+   //
+   // Loop over a given track array, apply cuts and add selected tracks to arrays
+   //
    AliReducedTrackInfo* track = 0x0;
-   TClonesArray* trackList = fEvent->GetTracks();
+   TClonesArray* trackList = (arrayOption==1 ? fEvent->GetTracks() : fEvent->GetTracks2());
+   
    TIter nextTrack(trackList);
-   Float_t nsigma = 0.;
-   for(Int_t it=0; it<fEvent->NTracks(); ++it) {
+   for(Int_t it=0; it<trackList->GetEntries(); ++it) {
       track = (AliReducedTrackInfo*)nextTrack();
       if(fOptionRunOverMC && track->IsMCTruth()) continue;
       //cout << "track " << it << ": "; AliReducedVarManager::PrintBits(track->Status()); cout << endl;
@@ -410,12 +433,12 @@ void AliReducedAnalysisJpsi2ee::RunTrackSelection() {
    }   // end loop over tracks
 }
 
-
 //___________________________________________________________________________
 void AliReducedAnalysisJpsi2ee::RunSameEventPairing(TString pairClass /*="PairSE"*/) {
    //
    // Run the same event pairing
    //
+   if(fOptionStoreJpsiCandidates) fJpsiCandidates.Clear("C");
    fValues[AliReducedVarManager::kNpairsSelected] = 0;
    
    TIter nextPosTrack(&fPosTracks);
@@ -438,6 +461,16 @@ void AliReducedAnalysisJpsi2ee::RunSameEventPairing(TString pairClass /*="PairSE
          if(IsPairSelected(fValues)) {
             FillPairHistograms(pTrack->GetFlags() & nTrack->GetFlags(), 1, pairClass, fOptionRunOverMC && IsMCTruth(pTrack, nTrack));    // 1 is for +- pairs 
             fValues[AliReducedVarManager::kNpairsSelected] += 1.0;
+            if(fOptionStoreJpsiCandidates) {
+               AliReducedPairInfo* pair = new AliReducedPairInfo();
+               pair->SetFlags(pTrack->GetFlags() & nTrack->GetFlags());
+               pair->PtPhiEta(fValues[AliReducedVarManager::kPt], fValues[AliReducedVarManager::kPhi], fValues[AliReducedVarManager::kEta]);
+               pair->SetMass(fValues[AliReducedVarManager::kMass]);
+               pair->CandidateId(AliReducedPairInfo::kJpsiToEE);
+               pair->PairType(1);
+               pair->SetLegIds(pTrack->TrackId(), nTrack->TrackId());
+               fJpsiCandidates.Add(pair);
+            }
          }
       }  // end loop over negative tracks
       
@@ -451,6 +484,16 @@ void AliReducedAnalysisJpsi2ee::RunSameEventPairing(TString pairClass /*="PairSE
             if(IsPairSelected(fValues)) {
                FillPairHistograms(pTrack->GetFlags() & pTrack2->GetFlags(), 0, pairClass);       // 0 is for ++ pairs 
                fValues[AliReducedVarManager::kNpairsSelected] += 1.0;
+               if(fOptionStoreJpsiCandidates) {
+                  AliReducedPairInfo* pair = new AliReducedPairInfo();
+                  pair->SetFlags(pTrack->GetFlags() & pTrack2->GetFlags());
+                  pair->PtPhiEta(fValues[AliReducedVarManager::kPt], fValues[AliReducedVarManager::kPhi], fValues[AliReducedVarManager::kEta]);
+                  pair->SetMass(fValues[AliReducedVarManager::kMass]);
+                  pair->CandidateId(AliReducedPairInfo::kJpsiToEE);
+                  pair->PairType(0);
+                  pair->SetLegIds(pTrack->TrackId(), pTrack2->TrackId());
+                  fJpsiCandidates.Add(pair);
+               }
             }
          }  // end loop over positive tracks
       }
@@ -470,6 +513,16 @@ void AliReducedAnalysisJpsi2ee::RunSameEventPairing(TString pairClass /*="PairSE
             if(IsPairSelected(fValues)) {
                FillPairHistograms(nTrack->GetFlags() & nTrack2->GetFlags(), 2, pairClass);      // 2 is for -- pairs
                fValues[AliReducedVarManager::kNpairsSelected] += 1.0;
+               if(fOptionStoreJpsiCandidates) {
+                  AliReducedPairInfo* pair = new AliReducedPairInfo();
+                  pair->SetFlags(nTrack->GetFlags() & nTrack2->GetFlags());
+                  pair->PtPhiEta(fValues[AliReducedVarManager::kPt], fValues[AliReducedVarManager::kPhi], fValues[AliReducedVarManager::kEta]);
+                  pair->SetMass(fValues[AliReducedVarManager::kMass]);
+                  pair->CandidateId(AliReducedPairInfo::kJpsiToEE);
+                  pair->PairType(2);
+                  pair->SetLegIds(nTrack->TrackId(), nTrack2->TrackId());
+                  fJpsiCandidates.Add(pair);
+               }
             }
          }  // end loop over negative tracks
       }  // end loop over negative tracks
@@ -549,14 +602,17 @@ void AliReducedAnalysisJpsi2ee::RunPrefilter() {
    nextPosTrack.Reset();
    for(Int_t ip = fPosTracks.GetEntries()-1 ; ip >= 0; --ip) {
      track = (AliReducedTrackInfo*)nextPosTrack();
-     if(!track->GetFlags()) fPosTracks.Remove(track);
+     if(!track->GetFlags()) {
+        fPosTracks.Remove(track);
+     }
    }
   nextNegTrack.Reset();
   for(Int_t ip = fNegTracks.GetEntries()-1 ; ip >= 0; --ip) {
     track = (AliReducedTrackInfo*)nextNegTrack();
-    if(!track->GetFlags()) fNegTracks.Remove(track);
+    if(!track->GetFlags()) {
+       fNegTracks.Remove(track);
+    }
   }
-
 }
 
 //___________________________________________________________________________
@@ -576,7 +632,7 @@ Bool_t AliReducedAnalysisJpsi2ee::IsMCTruth(AliReducedTrackInfo* track) {
    //
    if(TMath::Abs(track->MCPdg(0)) != 11) return kFALSE;
    if(TMath::Abs(track->MCPdg(1)) != 443) return kFALSE;
-   if(track->MCPdg(2) != -9999) return kFALSE;
+   //   if(track->MCPdg(2) != -9999) return kFALSE;
    return kTRUE;
 }
 
@@ -589,8 +645,8 @@ Bool_t AliReducedAnalysisJpsi2ee::IsMCTruth(AliReducedTrackInfo* ptrack, AliRedu
    if(TMath::Abs(ntrack->MCPdg(0)) != 11) return kFALSE;
    if(TMath::Abs(ptrack->MCPdg(1)) != 443) return kFALSE;
    if(TMath::Abs(ntrack->MCPdg(1)) != 443) return kFALSE;
-   if(ptrack->MCPdg(2) != -9999) return kFALSE;
-   if(ntrack->MCPdg(2) != -9999) return kFALSE;   
+   //if(ptrack->MCPdg(2) != -9999) return kFALSE;
+   //if(ntrack->MCPdg(2) != -9999) return kFALSE;   
    if(TMath::Abs(ptrack->MCLabel(1)) != TMath::Abs(ntrack->MCLabel(1))) return kFALSE;
    return kTRUE;
 }
@@ -607,7 +663,6 @@ void AliReducedAnalysisJpsi2ee::FillMCTruthHistograms() {
   AliReducedTrackInfo* leg2=0x0;
   TClonesArray* trackList = fEvent->GetTracks();
   TIter nextTrack(trackList);
-  Float_t nsigma = 0.;
   for(Int_t it=0; it<fEvent->NTracks(); ++it) {
      track = (AliReducedTrackInfo*)nextTrack();
      if(!track->IsMCTruth()) continue;

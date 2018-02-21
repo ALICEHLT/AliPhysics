@@ -24,7 +24,7 @@
 #define PIT 6.28318530717958623
 
 //____________________________
-AliFemtoCorrFctnDPhiStarDEta::AliFemtoCorrFctnDPhiStarDEta(char* title,
+AliFemtoCorrFctnDPhiStarDEta::AliFemtoCorrFctnDPhiStarDEta(const char* title,
                                                            double radius=0.8,
                                                            const int& aEtaBins=50,
                                                            double aEtaRangeLow=-0.1,
@@ -146,7 +146,7 @@ AliFemtoString AliFemtoCorrFctnDPhiStarDEta::Report()
   report += TString::Format("Number of entries in numerator:\t%E\n", fDPhiStarDEtaNumerator->GetEntries());
   report += TString::Format("Number of entries in denominator:\t%E\n", fDPhiStarDEtaDenominator->GetEntries());
   //  report += mCoulombWeight->Report();
-  return AliFemtoString(report);
+  return AliFemtoString((const char *)report);
 }
 
 //____________________________

@@ -51,6 +51,7 @@ ClassImp(AliCaloTrackMatcher)
 AliCaloTrackMatcher::AliCaloTrackMatcher(const char *name, Int_t clusterType) : AliAnalysisTaskSE(name),
   fClusterType(clusterType),
   fV0ReaderName(""),
+  fCorrTaskSetting(""),
   fAnalysisTrainMode("Grid"),
   fMatchingWindow(200),
   fMatchingResidual(0.2),
@@ -199,7 +200,14 @@ void AliCaloTrackMatcher::UserExec(Option_t *){
 
 //________________________________________________________________________
 void AliCaloTrackMatcher::ProcessEvent(AliVEvent *event){
-  Int_t nClus = event->GetNumberOfCaloClusters();
+  Int_t nClus = 0;
+  TClonesArray * arrClusters = NULL;
+  if(!fCorrTaskSetting.CompareTo("")){
+    nClus = event->GetNumberOfCaloClusters();
+  } else {
+    arrClusters = dynamic_cast<TClonesArray*>(event->FindListObject(Form("%sClustersBranch",fCorrTaskSetting.Data())));
+    nClus = arrClusters->GetEntries();
+  }
   Int_t nModules = 0;
   if(fClusterType == 1 || fClusterType == 3) nModules = fGeomEMCAL->GetNumberOfSuperModules();
   else if(fClusterType == 2) nModules = fGeomPHOS->GetNModules();
@@ -290,20 +298,30 @@ void AliCaloTrackMatcher::ProcessEvent(AliVEvent *event){
     Double_t exPos[3] = {0.,0.,0.};
     if (!emcParam.GetXYZ(exPos)){ fHistControlMatches->Fill(2.,inTrack->Pt()); continue;}
 
-//cout << inTrack->GetID() << " - " << trackParam << endl;
-//cout << "eta/phi: " << eta << ", " << phi << endl;
-//cout << "nClus: " << nClus << endl;
+// cout << inTrack->GetID() << " - " << trackParam << endl;
+// cout << "eta/phi: " << eta << ", " << phi << endl;
+// cout << "nClus: " << nClus << endl;
     Int_t nClusterMatchesToTrack = 0;
     for(Int_t iclus=0;iclus < nClus;iclus++){
-      AliVCluster* cluster = event->GetCaloCluster(iclus);
-      if (!cluster) continue;
-//cout << "-------------------------LOOPING: " << iclus << ", " << cluster->GetID() << endl;
+      AliVCluster* cluster = NULL;
+      if(arrClusters){
+        if(esdev){
+          if(arrClusters)
+            cluster = new AliESDCaloCluster(*(AliESDCaloCluster*)arrClusters->At(iclus));
+        } else if(aodev){
+          if(arrClusters)
+            cluster = new AliAODCaloCluster(*(AliAODCaloCluster*)arrClusters->At(iclus));
+        }
+      }
+      else
+        cluster = event->GetCaloCluster(iclus);
+      if (!cluster){ continue;}
+// cout << "-------------------------LOOPING: " << iclus << ", " << cluster->GetID() << endl;
       cluster->GetPosition(clsPos);
       Double_t dR = TMath::Sqrt(TMath::Power(exPos[0]-clsPos[0],2)+TMath::Power(exPos[1]-clsPos[1],2)+TMath::Power(exPos[2]-clsPos[2],2));
 //cout << "dR: " << dR << endl;
       if (dR > fMatchingWindow) continue;
       Double_t clusterR = TMath::Sqrt( clsPos[0]*clsPos[0] + clsPos[1]*clsPos[1] );
-
       AliExternalTrackParam trackParamTmp(emcParam);//Retrieve the starting point every time before the extrapolation
       if(fClusterType == 1 || fClusterType == 3){
         if (!cluster->IsEMCAL()) continue;
@@ -319,11 +337,10 @@ void AliCaloTrackMatcher::ProcessEvent(AliVEvent *event){
         dEta = clsPosVec.Eta()-trkPosVec.Eta();
       }
 
-
       Float_t dR2 = dPhi*dPhi + dEta*dEta;
+
 //cout << dEta << " - " << dPhi << " - " << dR2 << endl;
       if(dR2 > fMatchingResidual) continue;
-//cout << "MATCHED!!!!!!!" << endl;
       nClusterMatchesToTrack++;
       if(aodev){
         fMapTrackToCluster.insert(make_pair(itr,cluster->GetID()));
@@ -1239,7 +1256,7 @@ Float_t AliCaloTrackMatcher::SumTrackEtAroundCluster(AliVEvent* event, Int_t clu
   if((Int_t) labelsMatched.size()<1) return sumTrackEt;
 
   TLorentzVector vecTrack;
-  for (Int_t i = 0; i < (Int_t)labelsMatched.size(); i++){
+  for (UInt_t i = 0; i < labelsMatched.size(); i++){
     AliVTrack* currTrack  = dynamic_cast<AliVTrack*>(event->GetTrack(labelsMatched.at(i)));
     if(!currTrack) continue;
     vecTrack.SetPxPyPzE(currTrack->Px(),currTrack->Py(),currTrack->Pz(),currTrack->E());
@@ -1296,7 +1313,7 @@ void AliCaloTrackMatcher::DebugV0Matching(){
     Int_t tempClus = it->second;
     for (it=fSecMapClusterToTrack.begin(); it!=fSecMapClusterToTrack.end(); ++it) cout << it->first << " => " << it->second << '\n';
     vector<Int_t> tempTracks = GetMatchedSecTrackIDsForCluster(fInputEvent,tempClus, 5, -5, 0.2, -0.4);
-    for(Int_t iJ=0; iJ<tempTracks.size();iJ++){
+    for(UInt_t iJ=0; iJ<tempTracks.size();iJ++){
       cout << tempClus << " - " << tempTracks.at(iJ) << endl;
     }
   }
@@ -1335,7 +1352,7 @@ void AliCaloTrackMatcher::DebugMatching(){
     Int_t tempClus = it->second;
     for (it=fMapClusterToTrack.begin(); it!=fMapClusterToTrack.end(); ++it) cout << it->first << " => " << it->second << '\n';
     vector<Int_t> tempTracks = GetMatchedTrackIDsForCluster(fInputEvent,tempClus, 5, -5, 0.2, -0.4);
-    for(Int_t iJ=0; iJ<tempTracks.size();iJ++){
+    for(UInt_t iJ=0; iJ<tempTracks.size();iJ++){
       cout << tempClus << " - " << tempTracks.at(iJ) << endl;
     }
   }

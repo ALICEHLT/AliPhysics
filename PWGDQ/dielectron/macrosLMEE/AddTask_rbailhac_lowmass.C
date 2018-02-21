@@ -1,7 +1,8 @@
 AliAnalysisTask *AddTask_rbailhac_lowmass(Bool_t getFromAlien=kFALSE,
-                                             TString cFileName = "Config_rbailhac_lowmass.C",
-                                             Char_t* outputFileName="LMEE.root",
-                                             ULong64_t triggerMask = AliVEvent::kINT7
+					  TString cFileName = "Config_rbailhac_lowmass.C",
+					  Char_t* outputFileName="LMEE.root",
+					  ULong64_t triggerMask = AliVEvent::kINT7,
+					  Bool_t pileupon = kFALSE
                                              )
 {
 
@@ -24,16 +25,19 @@ AliAnalysisTask *AddTask_rbailhac_lowmass(Bool_t getFromAlien=kFALSE,
 
   //Do we have an MC handler?
   Bool_t hasMC = (AliAnalysisManager::GetAnalysisManager()->GetMCtruthEventHandler()!=0x0);
+  if(hasMC) kMix = 0;
 
   //if (!gROOT->GetListOfGlobalFunctions()->FindObject(cFileName.Data()))
   gROOT->LoadMacro(configFilePath.Data());
 
   //create task and add it to the manager (MB)
-  AliAnalysisTaskMultiDielectron *task = new AliAnalysisTaskMultiDielectron("MultiDielectron");
+  TString appendix(TString::Format("pileup%d",(Int_t)pileupon));
+  printf("appendix %s\n", appendix.Data());
+  AliAnalysisTaskMultiDielectron *task = new AliAnalysisTaskMultiDielectron(Form("MultiDielectron_%s",appendix.Data()));
   if (!hasMC) task->UsePhysicsSelection();
   task->SetTriggerMask(triggerMask);
-//  taskMB->SetRejectPileup();
-  //task->SetRandomizeDaughters(randomizeDau); //default kFALSE
+  if(pileupon) task->SetRejectPileup();
+  task->SetRandomizeDaughters(randomizeDau); //default kFALSE
 
   //Add event filter
   task->SetEventFilter( GetEventCuts() );
@@ -51,25 +55,25 @@ AliAnalysisTask *AddTask_rbailhac_lowmass(Bool_t getFromAlien=kFALSE,
 
   //create output container
   AliAnalysisDataContainer *coutput1 =
-    mgr->CreateContainer("tree_lowmass",
+    mgr->CreateContainer(Form("tree_lowmass_%s", appendix.Data()),
                          TTree::Class(),
                          AliAnalysisManager::kExchangeContainer,
                          outputFileName);
 
   AliAnalysisDataContainer *cOutputHist1 =
-    mgr->CreateContainer("Histos_diel_lowmass",
+    mgr->CreateContainer(Form("Histos_diel_lowmass_%s", appendix.Data()),
                          TList::Class(),
                          AliAnalysisManager::kOutputContainer,
                          outputFileName);
-
+  
   AliAnalysisDataContainer *cOutputHist2 =
-    mgr->CreateContainer("CF_diel_lowmass",
+    mgr->CreateContainer(Form("CF_diel_lowmass_%s", appendix.Data()),
                          TList::Class(),
                          AliAnalysisManager::kOutputContainer,
                          outputFileName);
 
   AliAnalysisDataContainer *cOutputHist3 =
-    mgr->CreateContainer("rbailhac_lowmass_EventStat",
+    mgr->CreateContainer(Form("rbailhac_lowmass_EventStat_%s", appendix.Data()),
                          TH1D::Class(),
                          AliAnalysisManager::kOutputContainer,
                          outputFileName);
@@ -83,5 +87,5 @@ AliAnalysisTask *AddTask_rbailhac_lowmass(Bool_t getFromAlien=kFALSE,
 
 
     return task;
-
+    
 }

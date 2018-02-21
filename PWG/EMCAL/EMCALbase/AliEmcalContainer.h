@@ -154,12 +154,13 @@ class AliEmcalContainer : public TObject {
   void                        ResetCurrentID(Int_t i=-1)            { fCurrentID = i                    ; }
   virtual void                SetArray(const AliVEvent *event);
   void                        SetArrayName(const char *n)           { fClArrayName = n                  ; }
+  void                        SetVertex(Double_t *vtx)              { memcpy(fVertex, vtx, sizeof(Double_t) * 3); }
   void                        SetBitMap(UInt_t m)                   { fBitMap = m                       ; }
   void                        SetIsParticleLevel(Bool_t b)          { fIsParticleLevel = b              ; }
   void                        SortArray()                           { fClArray->Sort()                  ; }
 
   TClass*                     GetLoadedClass()                      { return fLoadedClass               ; }
-  virtual void                NextEvent() {;}
+  virtual void                NextEvent(const AliVEvent *event);
   void                        SetMinMCLabel(Int_t s)                            { fMinMCLabel      = s   ; }
   void                        SetMaxMCLabel(Int_t s)                            { fMaxMCLabel      = s   ; }
   void                        SetMCLabelRange(Int_t min, Int_t max)             { SetMinMCLabel(min)     ; SetMaxMCLabel(max)    ; }
@@ -201,6 +202,7 @@ class AliEmcalContainer : public TObject {
    * @return Default array name
    */
   virtual TString             GetDefaultArrayName(const AliVEvent * const ev) const { return ""; }
+  void                        GetVertexFromEvent(const AliVEvent * event);
 
   TString                     fName;                    ///< object name
   TString                     fClArrayName;             ///< name of branch

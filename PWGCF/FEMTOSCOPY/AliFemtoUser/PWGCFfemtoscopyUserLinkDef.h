@@ -29,6 +29,7 @@
 #pragma link C++ class AliFemtoModelCorrFctnKStar;
 #pragma link C++ class AliFemtoModelCorrFctnQinv;
 #pragma link C++ class AliFemtoModelCorrFctnTrueQ;
+#pragma link C++ class AliFemtoModelCorrFctnKK;
 #pragma link C++ class AliFemtoModelCorrFctnNonIdDR;
 #pragma link C++ class AliFemtoModelCorrFctn3DSpherical;
 #pragma link C++ class AliFemtoModelCorrFctn3DLCMSSpherical;
@@ -49,11 +50,14 @@
 #pragma link C++ class AliFemtoCorrFctnTPCNcls;
 #pragma link C++ class AliFemtoCorrFctnDEtaDPhi;
 #pragma link C++ class AliFemtoCorrFctnDEtaDPhiCorrections+;
+#pragma link C++ class AliFemtoCorrFctnDEtaDPhiTHn;
 #pragma link C++ class AliFemtoCorrFctnDYDPhi;
 #pragma link C++ class AliFemtoCorrFctnKStar+;
 #pragma link C++ class AliFemtoCutMonitorParticlePtPDG;
 #pragma link C++ class AliFemtoCutMonitorParticlePtPDGV0;
 #pragma link C++ class AliFemtoCutMonitorParticleEtCorr;
+#pragma link C++ class AliFemtoCutMonitorParticleNumber;
+#pragma link C++ class AliFemtoCutMonitorEventNumber;
 #pragma link C++ class AliFemtoCorrFctnGammaMonitor;
 #pragma link C++ class AliFemtoCorrFctnMinvMonitor;
 #pragma link C++ class AliFemtoPairCutAntiGamma;
@@ -118,6 +122,18 @@
 #pragma link C++ class AliFemtoModelCorrFctnKStarFull+;
 #pragma link C++ class AliFemtoModelWeightGeneratorBasicLednicky+;
 #pragma link C++ class AliFemtoModelCorrFctnDEtaDPhiRM;
+
+#pragma link C++ class AliFemtoConfigObject-;
+#pragma link C++ class AliFemtoConfigObject::Painter;
+#pragma link C++ class AliFemtoConfigObject::BuildMap;
+#pragma link C++ class AliFemtoConfigObject::list_iterator;
+#pragma link C++ class AliFemtoConfigObject::map_iterator;
+#pragma link C++ class std::map<std::string, AliFemtoConfigObject>;
+#pragma link C++ class std::vector<AliFemtoConfigObject>;
+#pragma link C++ class std::vector<AliFemtoConfigObject>::iterator;
+#pragma link C++ class std::pair<double, double>;
+#pragma link C++ class std::vector<std::pair<double, double>>;
+// ^ these std:: classes required here for use in ROOT-5 macros (ROOT-6 should be ok)
 
 #pragma link C++ class AliFemtoAnalysisLambdaKaon+;
 #pragma link C++ class AliFemtoAnalysisLambdaKaon::AnalysisParams+;

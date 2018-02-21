@@ -11,7 +11,7 @@
 #include "AliV0ReaderV1.h"
 #include "AliConversionPhotonCuts.h"
 #include "TList.h"
-#include "AliStack.h"
+#include "AliMCEvent.h"
 #include "TClonesArray.h"
 
 
@@ -44,7 +44,7 @@ class AliAnalysisTaskConversionQA : public AliAnalysisTaskSE{
                                                                                             fIsHeavyIon = IsHeavyIon            ;
                                                                                           }
 
-    void FillType                           ( Bool_t fillTree, 
+    void FillType                           ( Double_t fillTree,
                                               Bool_t fillHistorams)                       {
                                                                                             ffillTree = fillTree                ;
                                                                                             ffillHistograms = fillHistorams     ;
@@ -78,10 +78,9 @@ class AliAnalysisTaskConversionQA : public AliAnalysisTaskSE{
     AliVEvent*                  fInputEvent;                //
     Int_t                       fNumberOfESDTracks;         //
     AliMCEvent*                 fMCEvent;                   //
-    AliStack*                   fMCStack;                   //
     TTree*                      fTreeQA;                    //
     Bool_t                      fIsHeavyIon;                //
-    Bool_t                      ffillTree;                  //
+    Double_t                    ffillTree;                  //
     Bool_t                      ffillHistograms;            //
     TList*                      fOutputList;                //
     TList*                      fTreeList;                  //
@@ -137,7 +136,7 @@ class AliAnalysisTaskConversionQA : public AliAnalysisTaskSE{
     Int_t*                      fMCStackPos;                //[fnGammaCandidates]
     Int_t*                      fMCStackNeg;                //[fnGammaCandidates]
     
-    ClassDef(AliAnalysisTaskConversionQA, 6);
+    ClassDef(AliAnalysisTaskConversionQA, 8);
 };
 
 #endif
